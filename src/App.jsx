@@ -12,18 +12,22 @@ import CreateRoom from "./Pages/createRoom";
 import JoinRoom from "./Pages/joinRoom";
 import "./App.css";
 import Table from "./components/table";
+import CreateOptions from "./Pages/createOptions";
 
 // Create socket ONCE outside component to avoid re-connection on re-renders
 const socket = io("http://localhost:3000");
 
 function App() {
   const [code, setCode] = useState("");
+  const [userData, setUserData] = useState({})
   const [inRoom, setInRoom] = useState(false);
   const [roomMembers, setRoomMembers] = useState([])
   const [initialPage, setInitialPage] = useState(false);
   const [toggleCreateRoom, setToggleCreateRoom] = useState(false);
   const [toggleJoinRoom, setToggleJoinRoom] = useState(false);
   const [options, setOptions] = useState(["CSK", "MI", "RCB", "KKR", "GT", "LSG", "SRH", "PBKS", "RR", "DC"])
+  const [bidInterval, setbidInterval] = useState("")
+  const [startAuction, setStartAuction] = useState(false)
 
   useEffect(() => {
     // Listen for events from server
@@ -32,25 +36,32 @@ function App() {
     });
 
     socket.on("room-created", (roomCode) => {
-      console.log("Room created:", roomCode);
       setCode(roomCode);
       setInRoom(true);
       setToggleCreateRoom(false);
     });
 
-    socket.on("joined-room", (res) => {
+    socket.on("joined-room", () => {
       setInRoom(true);
       setToggleJoinRoom(false);
     });
 
+    socket.on("userDetails", (data) => {
+      setUserData(data)
+    });
+
     socket.on("getAllRoomMembers", (res) => {
-      console.log("roomMembers",res)
       setRoomMembers(res);
     });
 
-    socket.on("joinRoomErrorHandling",(res)=> {
+    socket.on("joinRoomErrorHandling", (res)=> {
       alert(res.msg)
       setOptions(res.option)
+    })
+
+    socket.on("auctionStarted", (timer) => {
+      setbidInterval(timer)
+      setStartAuction(true)
     })
 
     // Cleanup listeners when component unmounts
@@ -112,6 +123,10 @@ function App() {
     setInitialPage(true);
   };
 
+  const handleStartAuction = (timer) => {
+    socket.emit("startAuction", {roomCode : code,timer});
+  }
+
   return (
     <Container maxWidth="sm" sx={{ mt: 5 }}>
       <Typography variant="h4" align="center" gutterBottom>
@@ -155,13 +170,21 @@ function App() {
       )}
 
       {/* Inside Room */}
-      {inRoom && (
+      {(inRoom && !startAuction) && (
         <Box mt={5} textAlign="center">
           <Typography variant="h5" gutterBottom>
             Room Code: <strong>{code}</strong>
           </Typography>
           <Table data={roomMembers}/>
+          {userData.role === "creator" &&
+            <CreateOptions handleStartAuction={handleStartAuction}/>
+          }
         </Box>
+      )}
+      {startAuction && (
+        <>
+          <h1>Here the Auction begins!!!!</h1>
+        </>
       )}
     </Container>
   );
