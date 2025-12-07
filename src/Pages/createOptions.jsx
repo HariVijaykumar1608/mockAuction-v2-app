@@ -1,38 +1,37 @@
 import { useState } from "react";
 import { TextField, Button, Box, Autocomplete } from "@mui/material";
 
-function CreateRoom({ handleCreateRoom, userName }) {
-  const [name, setName] = useState(userName || "");
-  const [team, setTeam] = useState("");
+function CreateOptions({ handleStartAuction }) {
+  const [timer, setTimer] = useState("");
 
   return (
     <Box display="flex" flexDirection="column" gap={2} width="300px" m="auto">
-      <TextField
+      {/* <TextField
         label="Enter your Name"
         variant="outlined"
         value={name}
         onChange={(e) => setName(e.target.value)}
         fullWidth
-      />
+      /> */}
     <Autocomplete
-      options={["CSK", "MI", "RCB", "KKR", "GT", "LSG", "SRH", "PBKS", "RR", "DC"]}
-      value={team}
-      onChange={(event, newValue) => setTeam(newValue)}
+      options={["10 sec", "15 sec", "30 sec", "45 sec", "1min"]}
+      value={timer}
+      onChange={(event, newValue) => setTimer(newValue)}
       fullWidth
       renderInput={(params) => (
-       <TextField {...params} label="Select your Team" variant="outlined" />
+       <TextField {...params} label="Timer" variant="outlined" />
     )}
     />
       <Button
         variant="contained"
         color="primary"
-        onClick={()=>handleCreateRoom(name,team)}
+        onClick={()=>handleStartAuction(timer)}
         fullWidth
       >
-        Create Room
+        Start Auction
       </Button>
     </Box>
   );
 }
 
-export default CreateRoom;
+export default CreateOptions;
