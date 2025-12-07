@@ -1,130 +1,168 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
-import {
-  Button,
-  Typography,
-  Box,
-  Container,
-  Stack,
-  Paper,
-} from "@mui/material";
+import {Button,Typography,Box,Container,Stack,Paper} from "@mui/material";
 import CreateRoom from "./Pages/createRoom";
 import JoinRoom from "./Pages/joinRoom";
-import "./App.css";
 import Table from "./components/table";
 import CreateOptions from "./Pages/createOptions";
-
-// Create socket ONCE outside component to avoid re-connection on re-renders
-const socket = io("http://localhost:3000");
+import Static from './Pages/Static';
+import RouteCall from "./route/routeCall";
+import "./App.css";
 
 function App() {
   const [code, setCode] = useState("");
-  const [userData, setUserData] = useState({})
+  const [userData, setUserData] = useState({});
   const [inRoom, setInRoom] = useState(false);
-  const [roomMembers, setRoomMembers] = useState([])
+  const [roomMembers, setRoomMembers] = useState([]);
   const [initialPage, setInitialPage] = useState(false);
   const [toggleCreateRoom, setToggleCreateRoom] = useState(false);
   const [toggleJoinRoom, setToggleJoinRoom] = useState(false);
-  const [options, setOptions] = useState(["CSK", "MI", "RCB", "KKR", "GT", "LSG", "SRH", "PBKS", "RR", "DC"])
-  const [bidInterval, setbidInterval] = useState("")
-  const [startAuction, setStartAuction] = useState(false)
+  const [options, setOptions] = useState([
+    "CSK", "MI", "RCB", "KKR", "GT", "LSG", "SRH", "PBKS", "RR", "DC"
+  ]);
+  const [bidInterval, setBidInterval] = useState("");
+  const [startAuction, setStartAuction] = useState(false);
+  const [signInPage, setSignInPage] = useState(false);
+  const [logInPage, setLogInPage] = useState(false);
+  const [welcomePage, setWelcomePage] = useState(false);
+  const [userName, setUserName] = useState("")
+
+  const socketRef = useRef(null);
 
   useEffect(() => {
-    // Listen for events from server
-    socket.on("connect", () => {
-      console.log("Connected to server:", socket.id);
+    async function checkLogin() {
+      try {
+        const checkLoginExists = await RouteCall.checkLogIn();
+
+        if (checkLoginExists.message === "Auto login success") {
+          setUserName(checkLoginExists.data.userName || "")
+          setInitialPage(true);
+          connectToSocket();
+        } else {
+          setWelcomePage(true);
+        }
+
+      } catch (error) {
+        console.log(error);
+        setWelcomePage(true);
+      }
+    }
+
+    checkLogin();
+  }, []);
+
+  const connectToSocket = () => {
+
+    if (socketRef.current) return;
+
+    socketRef.current = io("http://localhost:3000", {
+      withCredentials: true,
     });
 
-    socket.on("room-created", (roomCode) => {
+    // 🔥 Attach listeners inside connect()
+    socketRef.current.on("connect", () => {
+      console.log("WS Connected");
+      setWelcomePage(false)
+      setSignInPage(false)
+      setLogInPage(false)
+      setInitialPage(true)
+    });
+
+    socketRef.current.on("room-created", (roomCode) => {
       setCode(roomCode);
       setInRoom(true);
       setToggleCreateRoom(false);
     });
 
-    socket.on("joined-room", () => {
+    socketRef.current.on("joined-room", () => {
       setInRoom(true);
       setToggleJoinRoom(false);
     });
 
-    socket.on("userDetails", (data) => {
-      setUserData(data)
+    socketRef.current.on("userDetails", (data) => {
+      setUserData(data);
     });
 
-    socket.on("getAllRoomMembers", (res) => {
+    socketRef.current.on("getAllRoomMembers", (res) => {
       setRoomMembers(res);
     });
 
-    socket.on("joinRoomErrorHandling", (res)=> {
-      alert(res.msg)
-      setOptions(res.option)
-    })
+    socketRef.current.on("joinRoomErrorHandling", (res) => {
+      alert(res.msg);
+      setOptions(res.option);
+    });
 
-    socket.on("auctionStarted", (timer) => {
-      setbidInterval(timer)
-      setStartAuction(true)
-    })
+    socketRef.current.on("auctionStarted", (timer) => {
+      setBidInterval(timer);
+      setStartAuction(true);
+    });
 
-    // Cleanup listeners when component unmounts
-    return () => {
-      socket.off("connect");
-      socket.off("room-created");
-      socket.off("joined-room");
-      socket.off("getAllRoomMembers");
-      socket.off("joinRoomErrorHandling");
-    };
-  }, []);
+  }
 
-  // Create room
   const handleCreateRoom = (userName, team) => {
-    if (userName.trim() === "") {
-      alert("Please enter your name!");
-      return;
-    }
-    else if (team.trim() === ""){
-      alert("Please select your team!");
-      return;
-    }
-    socket.emit("create-room",{userName,team});
+    if (!userName.trim()) return alert("Enter name!");
+    if (!team.trim()) return alert("Choose team!");
+
+    socketRef.current.emit("create-room", { userName, team });
   };
 
-  // Join room
-  const handleJoinRoom = (roomCode,userName,team) => {
-    if (roomCode.trim() === "") {
-      alert("Please enter a valid room code!");
-      return;
-    }
-    else if (userName.trim() === ""){
-      alert("Please enter your Name!");
-      return;
-    }
-    else if (team.trim() === ""){
-      alert("Please select your team!");
-      return;
-    }
+  const handleJoinRoom = (roomCode, userName, team) => {
+    if (!roomCode.trim()) return alert("Enter room code!");
+    if (!userName.trim()) return alert("Enter name!");
+    if (!team.trim()) return alert("Choose team!");
+
     setCode(roomCode);
-    socket.emit("join-room", {roomCode,userName,team});
-  };
-
-  const handleIncrement = () => {
-    socket.emit("increment", code);
-  };
-
-  const handleDecrement = () => {
-    socket.emit("decrement", code);
-  };
-
-  const onOpenCreateRoom = () => {
-    setToggleCreateRoom(true);
-    setInitialPage(true);
-  };
-
-  const onOpenJoinRoom = () => {
-    setToggleJoinRoom(true);
-    setInitialPage(true);
+    socketRef.current.emit("join-room", { roomCode, userName, team });
   };
 
   const handleStartAuction = (timer) => {
-    socket.emit("startAuction", {roomCode : code,timer});
+    socketRef.current.emit("startAuction", { roomCode: code, timer });
+  };
+
+  const signInOrLogIn = async (gmailId, password, userName) => {
+    if (signInPage) {
+      const res = await RouteCall.signIn(userName, gmailId, password);
+
+      if (res.message === "User signed in successfully") {
+        console.log("signInSuccess");
+        setWelcomePage(false)
+        setSignInPage(false);
+        setLogInPage(true)
+      }
+      return;
+    }
+
+    // ---------------- LOGIN ----------------
+    const logInAttempt = await RouteCall.logIn(gmailId, password);
+
+    if (logInAttempt.message === "Login successful") {
+      console.log("LoginSuccess");
+      setUserName(logInAttempt.data.userName || "")
+      connectToSocket()
+
+    } else {
+      console.error("loginFailed");
+    }
+  };
+
+  const onOpenSignInPage = () => {
+    setWelcomePage(false)
+    setSignInPage(true)
+  }
+
+  const onOpenLoginPage = () => {
+    setWelcomePage(false)
+    setLogInPage(true)
+  }
+
+  const onOpenCreateRoom = () => {
+    setInitialPage(false)
+    setToggleCreateRoom(true)
+  }
+
+  const onOpenJoinRoom = () => {
+    setInitialPage(false)
+    setToggleJoinRoom(true)
   }
 
   return (
@@ -133,59 +171,60 @@ function App() {
         🎉 Welcome to Mock Auction
       </Typography>
 
-      {/* Landing Page */}
-      {!initialPage && (
+      {welcomePage && (
         <Stack spacing={2} alignItems="center" mt={4}>
-          <Button
-            variant="contained"
-            color="primary"
-            size="large"
-            onClick={onOpenCreateRoom}
-          >
+          <Button variant="contained" onClick={onOpenSignInPage}>
+            Sign In
+          </Button>
+
+          <Button variant="outlined" onClick={onOpenLoginPage}>
+            Log In
+          </Button>
+        </Stack>
+      )}
+
+      {initialPage && (
+        <Stack spacing={2} alignItems="center" mt={4}>
+          <Button variant="contained" onClick={onOpenCreateRoom}>
             Create Room
           </Button>
-          <Button
-            variant="outlined"
-            color="secondary"
-            size="large"
-            onClick={onOpenJoinRoom}
-          >
+
+          <Button variant="outlined" onClick={onOpenJoinRoom}>
             Join Room
           </Button>
         </Stack>
       )}
 
-      {/* Create Room Form */}
+      {signInPage && <Static signInOrLogIn={signInOrLogIn} signIn={signInPage} />}
+      {logInPage && <Static signInOrLogIn={signInOrLogIn} />}
+
       {toggleCreateRoom && (
-        <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
-          <CreateRoom handleCreateRoom={handleCreateRoom} />
+        <Paper sx={{ p: 3, mt: 4 }} elevation={3}>
+          <CreateRoom handleCreateRoom={handleCreateRoom} userName={userName} />
         </Paper>
       )}
 
-      {/* Join Room Form */}
       {toggleJoinRoom && (
-        <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
-          <JoinRoom handleJoinRoom={handleJoinRoom} options={options}/>
+        <Paper sx={{ p: 3, mt: 4 }} elevation={3}>
+          <JoinRoom handleJoinRoom={handleJoinRoom} options={options} userName={userName} />
         </Paper>
       )}
 
-      {/* Inside Room */}
-      {(inRoom && !startAuction) && (
+      {inRoom && !startAuction && (
         <Box mt={5} textAlign="center">
-          <Typography variant="h5" gutterBottom>
+          <Typography variant="h5">
             Room Code: <strong>{code}</strong>
           </Typography>
-          <Table data={roomMembers}/>
-          {userData.role === "creator" &&
-            <CreateOptions handleStartAuction={handleStartAuction}/>
-          }
+
+          <Table data={roomMembers} />
+
+          {userData.role === "creator" && (
+            <CreateOptions handleStartAuction={handleStartAuction} />
+          )}
         </Box>
       )}
-      {startAuction && (
-        <>
-          <h1>Here the Auction begins!!!!</h1>
-        </>
-      )}
+
+      {startAuction && <h1>🔥 Auction Started! 🔥</h1>}
     </Container>
   );
 }

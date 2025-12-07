@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { TextField, Button, Box, Autocomplete } from "@mui/material";
 
-function CreateRoom({ handleCreateRoom }) {
-  const [name, setName] = useState("");
+function CreateRoom({ handleCreateRoom, userName }) {
+  const [name, setName] = useState(userName || "");
   const [team, setTeam] = useState("");
 
   return (
