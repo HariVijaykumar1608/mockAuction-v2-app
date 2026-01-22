@@ -1,1 +1,1 @@
-# mockAuction-v2-app
+Online Multiplayer mockAuction FrontEnd services
